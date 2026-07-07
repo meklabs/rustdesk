@@ -216,7 +216,7 @@ fn show_license_blocked_dialog(message: &str) {
         }
     }
 
-    log::error!("{}", text);
+    hbb_common::log::error!("{}", text);
 }
 
 pub fn apply() {
