@@ -32,7 +32,6 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::common::global_init() {
         return None;
     }
-    crate::load_custom_client();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process
@@ -136,6 +135,7 @@ pub fn core_main() -> Option<Vec<String>> {
             return None;
         }
     }
+    crate::load_custom_client();
     #[cfg(windows)]
     {
         _is_quick_support |= !crate::platform::is_installed()
