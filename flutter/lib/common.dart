@@ -3713,12 +3713,12 @@ Widget loadPowered(BuildContext context) {
     cursor: SystemMouseCursors.click,
     child: GestureDetector(
       onTap: () {
-        launchUrl(Uri.parse('https://rustdesk.com'));
+        launchUrl(Uri.parse('https://meklabs.com.br'));
       },
       child: Opacity(
           opacity: 0.5,
           child: Text(
-            translate("powered_by_me"),
+            'MekLabs',
             overflow: TextOverflow.clip,
             style: Theme.of(context)
                 .textTheme
@@ -3783,7 +3783,7 @@ class _LogoState extends State<_Logo> {
             },
           );
           return Container(
-            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
+            constraints: BoxConstraints(maxWidth: 460, maxHeight: 110),
             child: image,
           ).marginOnly(left: 12, right: 12, top: 12);
         }
@@ -4032,23 +4032,6 @@ List<SubWindowResizeEdge>? get subWindowManagerEnableResizeEdges => isWindows
 
 void earlyAssert() {
   assert('\1' == '1');
-}
-
-void checkUpdate() {
-  if (!isWeb) {
-    if (!bind.isCustomClient()) {
-      platformFFI.registerEventHandler(
-          kCheckSoftwareUpdateFinish, kCheckSoftwareUpdateFinish,
-          (Map<String, dynamic> evt) async {
-        if (evt['url'] is String) {
-          stateGlobal.updateUrl.value = evt['url'];
-        }
-      });
-      Timer(const Duration(seconds: 1), () async {
-        bind.mainGetSoftwareUpdateUrl();
-      });
-    }
-  }
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535

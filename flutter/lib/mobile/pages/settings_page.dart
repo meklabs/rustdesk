@@ -9,7 +9,6 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:settings_ui/settings_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../common.dart';
 import '../../common/widgets/dialog.dart';
@@ -36,7 +35,7 @@ class SettingsPage extends StatefulWidget implements PageShape {
   State<SettingsPage> createState() => _SettingsState();
 }
 
-const url = 'https://rustdesk.com/';
+const url = 'https://meklabs.com.br';
 
 enum KeepScreenOn {
   never,
@@ -71,7 +70,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       false; //androidVersion >= 26; // remove because not work on every device
   var _ignoreBatteryOpt = false;
   var _enableStartOnBoot = false;
-  var _checkUpdateOnStartup = false;
   var _showTerminalExtraKeys = false;
   var _floatingWindowDisabled = false;
   var _keepScreenOn = KeepScreenOn.duringControlled; // relay on floating window
@@ -179,13 +177,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       if (enableStartOnBoot != _enableStartOnBoot) {
         update = true;
         _enableStartOnBoot = enableStartOnBoot;
-      }
-
-      var checkUpdateOnStartup =
-          mainGetLocalBoolOptionSync(kOptionEnableCheckUpdate);
-      if (checkUpdateOnStartup != _checkUpdateOnStartup) {
-        update = true;
-        _checkUpdateOnStartup = checkUpdateOnStartup;
       }
 
       var floatingWindowDisabled =
@@ -593,22 +584,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           gFFI.invokeMethod(AndroidChannel.kSetStartOnBootOpt, toValue);
         }));
 
-    if (!bind.isCustomClient()) {
-      enhancementsTiles.add(
-        SettingsTile.switchTile(
-          initialValue: _checkUpdateOnStartup,
-          title:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(translate('Check for software update on startup')),
-          ]),
-          onToggle: (bool toValue) async {
-            await mainSetLocalBoolOption(kOptionEnableCheckUpdate, toValue);
-            setState(() => _checkUpdateOnStartup = toValue);
-          },
-        ),
-      );
-    }
-
     enhancementsTiles.add(
       SettingsTile.switchTile(
         initialValue: _showTerminalExtraKeys,
@@ -973,7 +948,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 title: Text(translate("Version: ") + version),
                 value: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text('rustdesk.com',
+                  child: Text('meklabs.com.br',
                       style: TextStyle(
                         decoration: TextDecoration.underline,
                       )),
@@ -996,10 +971,9 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                   ),
                   leading: Icon(Icons.fingerprint)),
             SettingsTile(
-              title: Text(translate("Privacy Statement")),
-              onPressed: (context) =>
-                  launchUrlString('https://rustdesk.com/privacy.html'),
-              leading: Icon(Icons.privacy_tip),
+              title: Text(
+                  'Construído sobre o RustDesk, projeto de código aberto — nosso agradecimento à comunidade RustDesk.'),
+              leading: Icon(Icons.favorite),
             )
           ],
         ),
@@ -1101,30 +1075,6 @@ void showThemeSettings(OverlayDialogManager dialogManager) async {
       ]),
     );
   }, backDismiss: true, clickMaskDismiss: true);
-}
-
-void showAbout(OverlayDialogManager dialogManager) {
-  dialogManager.show((setState, close, context) {
-    return CustomAlertDialog(
-      title: Text(translate('About RustDesk')),
-      content: Wrap(direction: Axis.vertical, spacing: 12, children: [
-        Text('Version: $version'),
-        InkWell(
-            onTap: () async {
-              const url = 'https://rustdesk.com/';
-              await launchUrl(Uri.parse(url));
-            },
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('rustdesk.com',
-                  style: TextStyle(
-                    decoration: TextDecoration.underline,
-                  )),
-            )),
-      ]),
-      actions: [],
-    );
-  }, clickMaskDismiss: true, backDismiss: true);
 }
 
 class ScanButton extends StatelessWidget {

@@ -29,6 +29,15 @@ pub const WHITELIST: &str = "";
 pub const LICENSE_API_URL: &str =
     "https://my.infomek.com.br/api/rustdesk/receiver.php?_path=api/license/check";
 
+/// Base da mesma API acima (sem o receiver.php/_path), aplicada como
+/// "api-server" do RustDesk — é o que faz o client mandar login/heartbeat/
+/// sysinfo/auditoria de conexão (server/connection.rs) para o nosso backend
+/// em vez de cair no padrão público (admin.rustdesk.com, bloqueado) ou
+/// derivar a porta interna do id_server. Roteado por .htaccess em
+/// api/rustdesk/ (qualquer api/rustdesk/api/xxx -> receiver.php?_path=api/xxx).
+/// Mesma infra compartilhada de LICENSE_API_URL, nada por cliente.
+const API_SERVER_URL: &str = "https://my.infomek.com.br/api/rustdesk";
+
 // ── Aplicado automaticamente ao iniciar ───────────────────────────
 
 /// Cache local (por dispositivo, via LocalConfig — não sincroniza/exporta)
@@ -268,6 +277,7 @@ pub fn apply() {
                 if !server.key.is_empty() {
                     overwrite.insert("key".to_owned(), server.key);
                 }
+                overwrite.insert("api-server".to_owned(), API_SERVER_URL.to_owned());
                 overwrite.insert(
                     "verification-method".to_owned(),
                     "use-permanent-password".to_owned(),

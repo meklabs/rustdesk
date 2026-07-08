@@ -483,7 +483,6 @@ class _GeneralState extends State<_General> {
   }
 
   Widget other() {
-    final showAutoUpdate = isWindows && bind.mainIsInstalled();
     final children = <Widget>[
       if (!isWeb && !bind.isIncomingOnly())
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
@@ -539,20 +538,6 @@ class _GeneralState extends State<_General> {
               kOptionD3DRender,
               isServer: false,
             ),
-          ),
-        if (!isWeb && !bind.isCustomClient())
-          _OptionCheckBox(
-            context,
-            'Check for software update on startup',
-            kOptionEnableCheckUpdate,
-            isServer: false,
-          ),
-        if (showAutoUpdate)
-          _OptionCheckBox(
-            context,
-            'Auto update',
-            kOptionAllowAutoUpdate,
-            isServer: true,
           ),
         if (isWindows && !bind.isOutgoingOnly())
           _OptionCheckBox(
@@ -2433,7 +2418,7 @@ class _AboutState extends State<_About> {
       final scrollController = ScrollController();
       return SingleChildScrollView(
         controller: scrollController,
-        child: _Card(title: translate('About RustDesk'), children: [
+        child: _Card(title: 'About MekLabs', children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2452,15 +2437,7 @@ class _AboutState extends State<_About> {
                         .marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
-                  },
-                  child: Text(
-                    translate('Privacy Statement'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com');
+                    launchUrlString('https://meklabs.com.br');
                   },
                   child: Text(
                     translate('Website'),
@@ -2478,11 +2455,11 @@ class _AboutState extends State<_About> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Copyright © ${DateTime.now().toString().substring(0, 4)} Purslane Ltd.\n$license',
+                            'Copyright © ${DateTime.now().toString().substring(0, 4)} MekLabs.\n$license',
                             style: const TextStyle(color: Colors.white),
                           ),
                           Text(
-                            translate('Slogan_tip'),
+                            'Construído sobre o RustDesk, projeto de código aberto — nosso agradecimento à comunidade RustDesk.',
                             style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white),
