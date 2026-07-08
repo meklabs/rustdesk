@@ -657,7 +657,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
     final settings = SettingsList(
       sections: [
         customClientSection,
-        if (!bind.isDisableAccount())
+        if (!bind.isDisableAccount() && isAdvAccessEnabled(kAdvAccessAccountKey))
           SettingsSection(
             title: Text(translate('Account')),
             tiles: [
@@ -917,7 +917,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               SettingsTile(
                 title: Text(translate('Advanced Access')),
                 trailing: Icon(Icons.arrow_forward_ios),
-                onPressed: (context) => showAdvancedAccessMenu(),
+                onPressed: (context) =>
+                    showAdvancedAccessMenu(onChanged: () => setState(() {})),
               ),
             ],
           ),

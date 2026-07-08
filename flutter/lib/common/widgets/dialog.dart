@@ -82,7 +82,26 @@ const List<int> _kAdvancedAccessTabIndexes = [
 // licença, já formatada para exibição (ex.: "31/12/2026").
 const String _kLicenseExpiryOptionKey = 'deploy-license-expires-at';
 
-void showAdvancedAccessMenu() {
+// Deploy customizado: aba Account, botão "Change ID" e o card "Password" da
+// aba Segurança também ficam ocultos por padrão, religados só por aqui
+// (mesmo menu/senha das abas Recentes/Favoritas/Descobertas). Diferente do
+// PeerTabModel (que é reativo via ChangeNotifier), aqui é um valor simples
+// persistido em LocalFlutterOption — cada tela que checa isAdvAccessEnabled()
+// precisa recarregar (reabrir a aba, ou fechar/religar o app) pra refletir.
+const String kAdvAccessAccountKey = 'adv-access-account';
+const String kAdvAccessChangeIdKey = 'adv-access-change-id';
+const String kAdvAccessPasswordKey = 'adv-access-password';
+
+bool isAdvAccessEnabled(String key) => bind.getLocalFlutterOption(k: key) == 'Y';
+
+void _setAdvAccessEnabled(String key, bool enabled) =>
+    bind.setLocalFlutterOption(k: key, v: enabled ? 'Y' : 'N');
+
+// [onChanged] é chamado sempre que um toggle muda (e ao fechar o menu de
+// toggles) — quem chama isso de dentro de uma aba que também precisa
+// refletir Change ID/Password (não reativos via ChangeNotifier como as
+// abas de peer) deve passar um `setState(() {})` daquela tela.
+void showAdvancedAccessMenu({VoidCallback? onChanged}) {
   var msg = '';
   TextEditingController controller = TextEditingController();
   // Leitura síncrona via LocalConfig (mesmo mecanismo do peer_tab_model.dart),
@@ -93,7 +112,7 @@ void showAdvancedAccessMenu() {
     submit() {
       if (controller.text == _kAdvancedAccessPassword) {
         close();
-        _showAdvancedAccessToggles();
+        _showAdvancedAccessToggles(onChanged: onChanged);
       } else {
         setState(() {
           msg = translate('Wrong Password');
@@ -141,8 +160,23 @@ void showAdvancedAccessMenu() {
   });
 }
 
-void _showAdvancedAccessToggles() {
+void _showAdvancedAccessToggles({VoidCallback? onChanged}) {
   final model = gFFI.peerTabModel;
+
+  Widget advToggle(String key, String label, StateSetter setStateDialog) {
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(translate(label)),
+      value: isAdvAccessEnabled(key),
+      onChanged: (checked) {
+        _setAdvAccessEnabled(key, checked ?? false);
+        setStateDialog(() {});
+        onChanged?.call();
+      },
+    );
+  }
+
   gFFI.dialogManager.show((setState, close, context) {
     return CustomAlertDialog(
       title: Text(translate('Advanced Access')),
@@ -150,24 +184,36 @@ void _showAdvancedAccessToggles() {
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: _kAdvancedAccessTabIndexes.map((index) {
-            return CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text(translate(PeerTabModel.tabNames[index])),
-              value: model.isEnabled[index],
-              onChanged: (checked) {
-                model.setTabEnabled(index, checked ?? false);
-                setStateDialog(() {});
-              },
-            );
-          }).toList(),
+          children: [
+            ..._kAdvancedAccessTabIndexes.map((index) {
+              return CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(translate(PeerTabModel.tabNames[index])),
+                value: model.isEnabled[index],
+                onChanged: (checked) {
+                  model.setTabEnabled(index, checked ?? false);
+                  setStateDialog(() {});
+                },
+              );
+            }),
+            const Divider(),
+            advToggle(kAdvAccessAccountKey, 'Account', setStateDialog),
+            advToggle(kAdvAccessChangeIdKey, 'Change ID', setStateDialog),
+            advToggle(kAdvAccessPasswordKey, 'Password', setStateDialog),
+          ],
         );
       }),
       actions: [
-        dialogButton('Close', onPressed: close),
+        dialogButton('Close', onPressed: () {
+          close();
+          onChanged?.call();
+        }),
       ],
-      onCancel: close,
+      onCancel: () {
+        close();
+        onChanged?.call();
+      },
     );
   });
 }

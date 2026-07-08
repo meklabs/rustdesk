@@ -60,14 +60,16 @@ class _DropDownAction extends StatelessWidget {
               isOptionFixed(kOptionAllowNumericOneTimePassword);
           final isAllowNumericOneTimePassword =
               gFFI.serverModel.allowNumericOneTimePassword;
+          final showChangeId = !isChangeIdDisabled() &&
+              isAdvAccessEnabled(kAdvAccessChangeIdKey);
           return [
-            if (!isChangeIdDisabled())
+            if (showChangeId)
               PopupMenuItem(
                 enabled: gFFI.serverModel.connectStatus > 0,
                 value: "changeID",
                 child: Text(translate("Change ID")),
               ),
-            if (!isChangeIdDisabled()) const PopupMenuDivider(),
+            if (showChangeId) const PopupMenuDivider(),
             PopupMenuItem(
               value: 'AcceptSessionsViaPassword',
               child: listTile(

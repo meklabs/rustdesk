@@ -76,7 +76,8 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
     if (!isWeb && !bind.isIncomingOnly() && bind.pluginFeatureIsEnabled())
       SettingsTabKey.plugin,
-    if (!bind.isDisableAccount()) SettingsTabKey.account,
+    if (!bind.isDisableAccount() && isAdvAccessEnabled(kAdvAccessAccountKey))
+      SettingsTabKey.account,
     if (isWindows &&
         bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
       SettingsTabKey.printer,
@@ -879,9 +880,11 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               block: locked,
               child: Column(children: [
                 permissions(context),
-                password(context),
+                if (isAdvAccessEnabled(kAdvAccessPasswordKey))
+                  password(context),
                 _Card(title: '2FA', children: [tfa()]),
-                if (!isChangeIdDisabled())
+                if (!isChangeIdDisabled() &&
+                    isAdvAccessEnabled(kAdvAccessChangeIdKey))
                   _Card(title: 'ID', children: [changeId()]),
                 _Card(title: 'Advanced Access', children: [advancedAccess()]),
                 more(context),
@@ -1010,10 +1013,15 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
     return tmpWrapper();
   }
 
-  // Deploy customizado: religa Recentes/Favoritas/Descobertas (ocultas por
-  // padrão) mediante senha, ver showAdvancedAccessMenu() em dialog.dart.
+  // Deploy customizado: religa Recentes/Favoritas/Descobertas, Account,
+  // Change ID e Password (ocultos por padrão) mediante senha, ver
+  // showAdvancedAccessMenu() em dialog.dart. onChanged refaz o build desta
+  // aba pra refletir Change ID/Password na hora (Account exige reabrir a
+  // aba Settings, já que a lista de abas é static final).
   Widget advancedAccess() {
-    return _Button('Advanced Access', showAdvancedAccessMenu);
+    return _Button(
+        'Advanced Access',
+        () => showAdvancedAccessMenu(onChanged: () => setState(() {})));
   }
 
   Widget changeId() {
