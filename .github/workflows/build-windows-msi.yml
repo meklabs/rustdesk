@@ -18,6 +18,8 @@ on:
       - 'src/**'
       - 'flutter/**'
       - 'libs/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'res/msi/**'
       - '.github/workflows/build-windows-msi.yml'
 
