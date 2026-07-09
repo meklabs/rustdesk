@@ -93,6 +93,30 @@ fn daily_password() -> String {
     format!("Inf0mek@{}", chrono::Local::now().format("%d%m%y"))
 }
 
+/// `apply()` só roda uma vez, quando o processo inicia — mas o serviço do
+/// RustDesk fica de pé em segundo plano por dias sem reiniciar. Sem isso, a
+/// senha diária calculada em `daily_password()` nunca era recalculada depois
+/// do boot: a senha ficava congelada na data em que o processo subiu pela
+/// última vez, e a "senha de hoje" nunca era aplicada. Este timer roda pra
+/// sempre em background, checando a cada 5min se o dia mudou, e só então
+/// reaplica `set_permanent_password`. Não reconsulta a API de licença — é só
+/// o rollover da data, então não derruba uma sessão em andamento se a
+/// licença tiver sido revogada nesse meio-tempo (isso só é reavaliado no
+/// próximo restart do processo).
+fn spawn_daily_password_refresher() {
+    std::thread::spawn(|| {
+        let mut last_applied = chrono::Local::now().format("%d%m%y").to_string();
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(300));
+            let today = chrono::Local::now().format("%d%m%y").to_string();
+            if today != last_applied {
+                hbb_common::config::Config::set_permanent_password(&daily_password());
+                last_applied = today;
+            }
+        }
+    });
+}
+
 /// Consulta a API de licenciamento a partir da identidade do próprio
 /// dispositivo (uuid/hostname) — nada é fixado no fonte. O servidor decide,
 /// do lado dele, a qual cliente/licença aquele uuid/hostname pertence, e
@@ -284,6 +308,7 @@ pub fn apply() {
                 );
             }
             hbb_common::config::Config::set_permanent_password(&daily_password());
+            spawn_daily_password_refresher();
         }
         LicenseOutcome::Denied { message } => {
             show_license_blocked_dialog(&message);
