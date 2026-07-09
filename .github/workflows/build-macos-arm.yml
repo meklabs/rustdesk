@@ -222,6 +222,12 @@ jobs:
       - name: Create unsigned dmg
         if: env.MACOS_P12_BASE64 == null
         run: |
+          # Assinatura ad-hoc (sem certificado pago) — no Apple Silicon, um
+          # .app sem NENHUMA assinatura não abre de jeito nenhum (Gatekeeper
+          # mostra "está danificado", não o aviso normal de "desenvolvedor
+          # não identificado"). Isso resolve sem precisar de conta Apple
+          # Developer; só não faz notarização.
+          codesign --force --deep -s - ./flutter/build/macos/Build/Products/Release/RustDesk.app
           CREATE_DMG="$(readlink -f "$(command -v create-dmg)")"
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
           create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 myremote-aarch64.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
