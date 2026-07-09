@@ -1,17 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Build macOS DMG (customizado, Infomek/MekLabs)
+# Build macOS DMG — Intel (x86_64) (customizado, Infomek/MekLabs)
 # ─────────────────────────────────────────────────────────────────────────────
 # COMO USAR:
-#   Vá em Actions > "Build macOS DMG" > Run workflow
-#   Quando terminar, baixe o artefato "myremote-macos-<arch>" (arquivo .dmg)
+#   Vá em Actions > "Build macOS DMG (Intel)" > Run workflow
+#   Quando terminar, baixe o artefato "myremote-macos-x86_64" (arquivo .dmg)
 #
 # Sem certificado Apple Developer configurado (secrets MACOS_P12_BASE64 etc.),
 # o .dmg sai sem assinar — o usuário precisa clicar com o botão direito no
 # app > Abrir na primeira vez (aviso do Gatekeeper). Funciona normalmente
 # para distribuição interna, só não passa pela notarização da Apple.
+#
+# Separado do build Apple Silicon (build-macos-arm.yml) de propósito: workflows
+# independentes evitam a confusão do GitHub Actions de esconder o artefato de
+# um job que não foi re-executado quando só o outro falha e você usa
+# "Re-run failed jobs".
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Build macOS DMG
+name: Build macOS DMG (Intel)
 
 on:
   workflow_dispatch:
@@ -23,7 +28,7 @@ on:
       - 'libs/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - '.github/workflows/build-macos-dmg.yml'
+      - '.github/workflows/build-macos-x86.yml'
 
 env:
   FLUTTER_VERSION:    "3.24.5"
@@ -94,17 +99,11 @@ jobs:
             ./flutter/macos/Runner/bridge_generated.h
             ./flutter/ios/Runner/bridge_generated.h
 
-  # ── 2. Compila o app + DMG no macOS ───────────────────────────────────────
-  build-macos:
-    name: ${{ matrix.job.target }}
+  # ── 2. Compila o app + DMG (Intel) ────────────────────────────────────────
+  build-macos-x86:
+    name: x86_64-apple-darwin
     needs: generate-bridge
-    runs-on: ${{ matrix.job.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          - { target: x86_64-apple-darwin,  os: macos-15-intel, arch: x86_64,  extra-build-args: "" }
-          - { target: aarch64-apple-darwin, os: macos-14,       arch: aarch64, extra-build-args: "--screencapturekit" }
+    runs-on: macos-15-intel
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -173,12 +172,12 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ env.MAC_RUST_VERSION }}
-          targets: ${{ matrix.job.target }}
+          targets: x86_64-apple-darwin
           components: rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ matrix.job.os }}
+          prefix-key: macos-15-intel
 
       - name: Restore bridge files
         uses: actions/download-artifact@v4
@@ -201,14 +200,7 @@ jobs:
 
       - name: Build rustdesk
         run: |
-          if [ "${{ matrix.job.target }}" = "aarch64-apple-darwin" ]; then
-            MIN_MACOS_VERSION="12.3"
-            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET\=[0-9]*.[0-9]*/MACOSX_DEPLOYMENT_TARGET=${MIN_MACOS_VERSION}/" build.py
-            sed -i -e "s/platform :osx, '.*'/platform :osx, '${MIN_MACOS_VERSION}'/" flutter/macos/Podfile
-            sed -i -e "s/osx_minimum_system_version = \"[0-9]*.[0-9]*\"/osx_minimum_system_version = \"${MIN_MACOS_VERSION}\"/" Cargo.toml
-            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET = [0-9]*.[0-9]*;/MACOSX_DEPLOYMENT_TARGET = ${MIN_MACOS_VERSION};/" flutter/macos/Runner.xcodeproj/project.pbxproj
-          fi
-          ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
+          ./build.py --flutter --hwcodec --unix-file-copy-paste
 
       - name: Codesign app and create signed dmg
         if: env.MACOS_P12_BASE64 != null
@@ -218,20 +210,20 @@ jobs:
           security default-keychain -s myremote.keychain
           security unlock-keychain -p ${{ secrets.MACOS_P12_PASSWORD }} myremote.keychain
           codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict ./flutter/build/macos/Build/Products/Release/RustDesk.app -vvv
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 myremote-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
-          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict myremote-${{ matrix.job.arch }}.dmg -vvv
-          rcodesign notary-submit --api-key-path ${{ github.workspace }}/myremote.json --staple myremote-${{ matrix.job.arch }}.dmg
+          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 myremote-x86_64.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict myremote-x86_64.dmg -vvv
+          rcodesign notary-submit --api-key-path ${{ github.workspace }}/myremote.json --staple myremote-x86_64.dmg
 
       - name: Create unsigned dmg
         if: env.MACOS_P12_BASE64 == null
         run: |
           CREATE_DMG="$(readlink -f "$(command -v create-dmg)")"
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 myremote-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 myremote-x86_64.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myremote-macos-${{ matrix.job.arch }}
-          path: myremote-${{ matrix.job.arch }}.dmg
+          name: myremote-macos-x86_64
+          path: myremote-x86_64.dmg
           retention-days: 30

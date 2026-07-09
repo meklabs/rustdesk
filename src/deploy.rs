@@ -255,6 +255,19 @@ fn show_license_blocked_dialog(message: &str) {
 pub fn apply() {
     use hbb_common::config;
 
+    // Nome exibido na barra de tarefas/tooltip da bandeja (bind.mainGetAppNameSync()
+    // no Flutter, lê hbb_common::config::APP_NAME) — sem isso o instalador/Program
+    // Files/Gerenciador de Tarefas mostram "MyRemote", mas o app em si continua
+    // dizendo "RustDesk" internamente. Setado o mais cedo possível em apply()
+    // (chamado antes de qualquer janela/tray existir) pra não ter nem um piscar
+    // do nome antigo. APP_NAME também define a pasta de config local
+    // (%APPDATA%\MyRemote\ no Windows) — na primeira execução após o update,
+    // cada dispositivo já em campo passa a gerar um ID numérico novo do
+    // RustDesk (a pasta antiga fica órfã), mas o uuid usado pela licença vem
+    // do machine_uid do Windows, não dessa pasta — o vínculo com o cliente no
+    // painel admin não se perde.
+    *config::APP_NAME.write().unwrap() = "MyRemote".to_owned();
+
     // Insere em OVERWRITE_SETTINGS → a UI exibe como "fixo" (sem checkbox editável)
     {
         let mut overwrite = config::OVERWRITE_SETTINGS.write().unwrap();
