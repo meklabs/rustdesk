@@ -5,7 +5,7 @@
 #   1. Crie um repositório no GitHub (público ou privado)
 #   2. git init && git remote add origin <url> && git push -u origin main
 #   3. Vá em Actions > "Build Windows MSI" > Run workflow
-#   4. Quando terminar, baixe o artefato "rustdesk-windows-msi" (arquivo .msi)
+#   4. Quando terminar, baixe o artefato "myremote-windows-msi" (arquivo .msi)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Build Windows MSI
@@ -204,16 +204,16 @@ jobs:
         shell: pwsh
         run: |
           pushd .\res\msi
-          python preprocess.py --arp -d ..\..\rustdesk
+          python preprocess.py --arp -d ..\..\rustdesk --app-name MyRemote --manufacturer MekLabs
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem .\Package\bin\*\Release\en-us\Package.msi | Select-Object -First 1
-          Copy-Item $msi.FullName ..\..\rustdesk-custom-x64.msi
+          Copy-Item $msi.FullName ..\..\myremote-x64.msi
           popd
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rustdesk-windows-msi
-          path: rustdesk-custom-x64.msi
+          name: myremote-windows-msi
+          path: myremote-x64.msi
           retention-days: 30
