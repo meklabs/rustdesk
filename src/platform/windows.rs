@@ -677,6 +677,10 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
     let mut h_process = launch_server(session_id, true).await.unwrap_or(NULL);
     let mut incoming = ipc::new_listener(crate::POSTFIX_SERVICE).await?;
     let mut stored_usid = None;
+    // Uma vez true, o --server não é relançado de novo por este processo de
+    // serviço (só volta a tentar no próximo restart do serviço/máquina) — ver
+    // LICENSE_BLOCKED_EXIT_CODE em src/deploy.rs para o porquê.
+    let mut license_blocked = false;
     loop {
         let sids: Vec<_> = get_available_sessions(false)
             .iter()
@@ -688,7 +692,7 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 session_id = current_active_session;
                 // https://github.com/rustdesk/rustdesk/discussions/10039
                 let count = ipc::get_port_forward_session_count(1000).await.unwrap_or(0);
-                if count == 0 {
+                if count == 0 && !license_blocked {
                     h_process = launch_server(session_id, true).await.unwrap_or(NULL);
                 }
             }
@@ -726,8 +730,11 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                                         );
                                         session_id = usid;
                                         stored_usid = Some(session_id);
-                                        h_process =
-                                            launch_server(session_id, true).await.unwrap_or(NULL);
+                                        if !license_blocked {
+                                            h_process = launch_server(session_id, true)
+                                                .await
+                                                .unwrap_or(NULL);
+                                        }
                                     }
                                 }
                             }
@@ -755,17 +762,30 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                         }
                     }
                     let mut exit_code: DWORD = 0;
-                    if h_process.is_null()
+                    let process_ended = h_process.is_null()
                         || (GetExitCodeProcess(h_process, &mut exit_code) == TRUE
                             && exit_code != STILL_ACTIVE
-                            && CloseHandle(h_process) == TRUE)
-                    {
-                        match launch_server(session_id, !close_sent).await {
-                            Ok(ptr) => {
-                                h_process = ptr;
+                            && CloseHandle(h_process) == TRUE);
+                    if process_ended {
+                        if exit_code == crate::deploy::LICENSE_BLOCKED_EXIT_CODE as DWORD {
+                            if !license_blocked {
+                                log::error!(
+                                    "--server saiu com licença bloqueada/negada (código {}); \
+                                     não será relançado até o próximo restart do serviço, \
+                                     para não ficar reabrindo o diálogo de licença.",
+                                    exit_code
+                                );
                             }
-                            Err(err) => {
-                                log::error!("Failed to launch server: {}", err);
+                            license_blocked = true;
+                            h_process = NULL;
+                        } else if !license_blocked {
+                            match launch_server(session_id, !close_sent).await {
+                                Ok(ptr) => {
+                                    h_process = ptr;
+                                }
+                                Err(err) => {
+                                    log::error!("Failed to launch server: {}", err);
+                                }
                             }
                         }
                     }

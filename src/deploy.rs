@@ -52,6 +52,30 @@ const LICENSE_SERVER_CACHE_KEY: &str = "deploy-license-server-cfg";
 /// licença é negada explicitamente, para não mostrar data velha.
 const LICENSE_EXPIRY_KEY: &str = "deploy-license-expires-at";
 
+/// Timestamp Unix (segundos, UTC) da última vez que a API confirmou
+/// `valid: true` neste dispositivo. Limpo junto com o cache acima quando a
+/// licença é negada explicitamente. `license_from_cache()` usa isso pra medir
+/// há quanto tempo o dispositivo está operando sem contato bem-sucedido com a
+/// API — ver LICENSE_GRACE_PERIOD_SECS.
+const LICENSE_LAST_VALIDATED_KEY: &str = "deploy-license-last-validated";
+
+/// Prazo máximo que uma validação em cache pode ser reaproveitada sem contato
+/// bem-sucedido com a API (3,5 dias = 302400s). Depois disso, mesmo com cache
+/// válido, o app bloqueia — evita que uma licença revogada continue
+/// funcionando pra sempre só porque o dispositivo ficou sem rede (de
+/// propósito ou não). Cobre folgas de fim de semana/feriado prolongado ou uma
+/// queda de link/manutenção da API sem derrubar o técnico no meio do serviço.
+const LICENSE_GRACE_PERIOD_SECS: i64 = 302_400;
+
+/// Exit code usado quando `apply()` encerra o processo por licença negada ou
+/// bloqueada (nunca por um crash comum). O serviço Windows (`run_service()`
+/// em platform/windows.rs) relança o `--server` automaticamente sempre que
+/// ele morre, sem nenhum limite — sem esse código dedicado, uma licença
+/// bloqueada vira um loop infinito de "relança -> mostra diálogo -> sai ->
+/// relança" a cada ~300ms. `run_service()` reconhece esse código específico
+/// e para de relançar até o próximo restart do serviço.
+pub const LICENSE_BLOCKED_EXIT_CODE: i32 = 42;
+
 #[derive(serde::Deserialize, Default)]
 struct LicenseCheckResponse {
     #[serde(default)]
@@ -75,15 +99,24 @@ struct ServerConfig {
 }
 
 enum LicenseOutcome {
-    /// Licença confirmada (nesta checagem ou reaproveitada do cache local),
-    /// com a config de servidor deste dispositivo/cliente específico.
+    /// Licença confirmada nesta checagem, direto com a API (online).
     Valid(ServerConfig),
+    /// Sem resposta da API agora, mas reaproveitando uma validação
+    /// anterior bem-sucedida deste dispositivo, ainda dentro do prazo de
+    /// tolerância (LICENSE_GRACE_PERIOD_SECS). `grace_expires_at` é quando
+    /// esse prazo acaba — usado só pra avisar o usuário, não bloqueia nada
+    /// ainda.
+    CachedGrace {
+        server: ServerConfig,
+        grace_expires_at: chrono::DateTime<chrono::Local>,
+    },
     /// O servidor negou explicitamente (chave revogada/expirada).
     Denied { message: String },
-    /// Sem resposta do servidor (rede/instabilidade) e sem nenhum cache local
-    /// de uma validação anterior bem-sucedida neste dispositivo — ou seja,
-    /// não existe nenhuma config de servidor própria pra aplicar. Bloqueia
-    /// em vez de deixar o app cair no servidor público do RustDesk.
+    /// Sem resposta do servidor (rede/instabilidade) e sem nenhuma validação
+    /// aproveitável: ou nunca validou com sucesso neste dispositivo, ou o
+    /// cache existe mas passou do prazo de tolerância (LICENSE_GRACE_PERIOD_SECS)
+    /// sem contato novo com a API. Bloqueia em vez de deixar o app seguir sem
+    /// uma config de servidor própria ou cair no servidor público do RustDesk.
     Blocked { message: String },
 }
 
@@ -146,6 +179,7 @@ fn check_license() -> LicenseOutcome {
             Ok(parsed) if !parsed.valid => {
                 LocalConfig::set_option(LICENSE_SERVER_CACHE_KEY.to_owned(), "".to_owned());
                 LocalConfig::set_option(LICENSE_EXPIRY_KEY.to_owned(), "".to_owned());
+                LocalConfig::set_option(LICENSE_LAST_VALIDATED_KEY.to_owned(), "".to_owned());
                 let message = if parsed.message.is_empty() {
                     "Licença inválida ou expirada. Contate o suporte Infomek.".to_owned()
                 } else {
@@ -165,6 +199,10 @@ fn check_license() -> LicenseOutcome {
                 if !parsed.expires_at.is_empty() {
                     LocalConfig::set_option(LICENSE_EXPIRY_KEY.to_owned(), parsed.expires_at);
                 }
+                LocalConfig::set_option(
+                    LICENSE_LAST_VALIDATED_KEY.to_owned(),
+                    chrono::Utc::now().timestamp().to_string(),
+                );
                 LicenseOutcome::Valid(ServerConfig {
                     id_server: parsed.id_server,
                     relay_server: parsed.relay_server,
@@ -182,41 +220,76 @@ fn check_license() -> LicenseOutcome {
 }
 
 fn license_from_cache() -> LicenseOutcome {
+    use chrono::TimeZone;
     use hbb_common::config::LocalConfig;
 
-    let blocked = || LicenseOutcome::Blocked {
-        message: "Sem conexão com o servidor de licenciamento e nenhuma validação anterior \
-                  registrada neste dispositivo. Verifique a internet e tente novamente."
-            .to_owned(),
+    let blocked = |message: String| LicenseOutcome::Blocked { message };
+    let no_history = || {
+        blocked(
+            "Sem conexão com o servidor de licenciamento e nenhuma validação anterior \
+             registrada neste dispositivo. Verifique a internet e tente novamente."
+                .to_owned(),
+        )
     };
 
     let cached = LocalConfig::get_option(LICENSE_SERVER_CACHE_KEY);
-    if cached.is_empty() {
-        return blocked();
+    let last_validated = LocalConfig::get_option(LICENSE_LAST_VALIDATED_KEY);
+    if cached.is_empty() || last_validated.is_empty() {
+        return no_history();
     }
+
+    let last_validated_ts: i64 = match last_validated.parse() {
+        Ok(ts) => ts,
+        Err(_) => return no_history(),
+    };
+    let elapsed_secs = chrono::Utc::now().timestamp() - last_validated_ts;
+    if !(0..=LICENSE_GRACE_PERIOD_SECS).contains(&elapsed_secs) {
+        return blocked(
+            "Licença não revalidada com o servidor Infomek há mais de 3,5 dias. \
+             Verifique a internet ou contate o suporte."
+                .to_owned(),
+        );
+    }
+
     let mut parts = cached.splitn(3, '\n');
     let id_server = parts.next().unwrap_or_default().to_owned();
     let relay_server = parts.next().unwrap_or_default().to_owned();
     let key = parts.next().unwrap_or_default().to_owned();
     if id_server.is_empty() {
-        blocked()
-    } else {
-        LicenseOutcome::Valid(ServerConfig {
+        return no_history();
+    }
+
+    let grace_expires_at = chrono::Local
+        .timestamp_opt(last_validated_ts, 0)
+        .single()
+        .unwrap_or_else(chrono::Local::now)
+        + chrono::Duration::seconds(LICENSE_GRACE_PERIOD_SECS);
+
+    // Não aparece em tela — fica só no log em disco do app, como pedido.
+    hbb_common::log::warn!(
+        "Licença operando em modo offline (cache local, sem contato com a API \
+         desde {}s atrás). Prazo de tolerância até {}.",
+        elapsed_secs,
+        grace_expires_at.format("%d/%m/%Y %H:%M")
+    );
+
+    LicenseOutcome::CachedGrace {
+        server: ServerConfig {
             id_server,
             relay_server,
             key,
-        })
+        },
+        grace_expires_at,
     }
 }
 
-/// Mostra um alerta nativo (sem depender do Flutter já estar carregado) antes
-/// de encerrar o processo por licença negada/bloqueada.
-fn show_license_blocked_dialog(message: &str) {
-    let text = format!("{}!", message.trim_end_matches('!'));
-
+/// Mostra um alerta nativo (sem depender do Flutter já estar carregado).
+/// Bloqueia até o usuário clicar OK, mas não decide sozinho se o processo
+/// deve encerrar depois — quem chama decide isso.
+fn native_alert(text: &str) {
     #[cfg(target_os = "windows")]
     {
-        crate::platform::windows::message_box(&text);
+        crate::platform::windows::message_box(text);
     }
 
     #[cfg(target_os = "macos")]
@@ -244,12 +317,52 @@ fn show_license_blocked_dialog(message: &str) {
                 .arg("--title")
                 .arg("Infomek — Licença")
                 .arg("--error")
-                .arg(&text)
+                .arg(text)
                 .status();
         }
     }
+}
 
+/// Diálogo mostrado antes de encerrar o processo por licença negada/bloqueada
+/// (o chamador é responsável por sair em seguida). Ao clicar OK, some — não
+/// reaparece sozinho: só volta se o processo for relançado de novo (e, com
+/// LICENSE_BLOCKED_EXIT_CODE, isso só acontece no próximo restart do serviço).
+fn show_license_blocked_dialog(message: &str) {
+    let text = format!("{}!", message.trim_end_matches('!'));
     hbb_common::log::error!("{}", text);
+    native_alert(&text);
+}
+
+/// Diálogo de aviso não-bloqueante: informa que a licença está operando em
+/// modo offline (dentro do prazo de tolerância) e some ao clicar OK, sem
+/// encerrar o processo. Só reaparece no próximo restart do processo (não
+/// fica reabrindo em loop).
+fn show_license_grace_notice(message: &str) {
+    let text = format!("{}.", message.trim_end_matches('.'));
+    hbb_common::log::warn!("{}", text);
+    native_alert(&text);
+}
+
+/// Aplica id_server/relay_server/key da licença como config "fixa" (sem
+/// checkbox editável na UI). Compartilhado entre o caminho online (Valid) e
+/// o caminho em modo de tolerância offline (CachedGrace) — mesma config,
+/// única diferença é se veio de uma checagem fresca ou do cache local.
+fn apply_server_config(server: ServerConfig) {
+    let mut overwrite = hbb_common::config::OVERWRITE_SETTINGS.write().unwrap();
+    if !server.id_server.is_empty() {
+        overwrite.insert("custom-rendezvous-server".to_owned(), server.id_server);
+    }
+    if !server.relay_server.is_empty() {
+        overwrite.insert("relay-server".to_owned(), server.relay_server);
+    }
+    if !server.key.is_empty() {
+        overwrite.insert("key".to_owned(), server.key);
+    }
+    overwrite.insert("api-server".to_owned(), API_SERVER_URL.to_owned());
+    overwrite.insert(
+        "verification-method".to_owned(),
+        "use-permanent-password".to_owned(),
+    );
 }
 
 pub fn apply() {
@@ -300,36 +413,30 @@ pub fn apply() {
     // servidor público do RustDesk.
     match check_license() {
         LicenseOutcome::Valid(server) => {
-            {
-                let mut overwrite = config::OVERWRITE_SETTINGS.write().unwrap();
-                if !server.id_server.is_empty() {
-                    overwrite.insert(
-                        "custom-rendezvous-server".to_owned(),
-                        server.id_server,
-                    );
-                }
-                if !server.relay_server.is_empty() {
-                    overwrite.insert("relay-server".to_owned(), server.relay_server);
-                }
-                if !server.key.is_empty() {
-                    overwrite.insert("key".to_owned(), server.key);
-                }
-                overwrite.insert("api-server".to_owned(), API_SERVER_URL.to_owned());
-                overwrite.insert(
-                    "verification-method".to_owned(),
-                    "use-permanent-password".to_owned(),
-                );
-            }
+            apply_server_config(server);
             hbb_common::config::Config::set_permanent_password(&daily_password());
             spawn_daily_password_refresher();
         }
+        LicenseOutcome::CachedGrace {
+            server,
+            grace_expires_at,
+        } => {
+            apply_server_config(server);
+            hbb_common::config::Config::set_permanent_password(&daily_password());
+            spawn_daily_password_refresher();
+            show_license_grace_notice(&format!(
+                "Período de teste Infomek ativo (sem conexão com o servidor de \
+                 licenciamento) — expira em {}",
+                grace_expires_at.format("%d/%m/%Y %H:%M")
+            ));
+        }
         LicenseOutcome::Denied { message } => {
             show_license_blocked_dialog(&message);
-            std::process::exit(1);
+            std::process::exit(LICENSE_BLOCKED_EXIT_CODE);
         }
         LicenseOutcome::Blocked { message } => {
             show_license_blocked_dialog(&message);
-            std::process::exit(1);
+            std::process::exit(LICENSE_BLOCKED_EXIT_CODE);
         }
     }
 }
