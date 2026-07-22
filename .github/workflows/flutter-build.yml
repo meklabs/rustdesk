@@ -1386,6 +1386,12 @@ jobs:
 
   build-rustdesk-linux:
     needs: [generate-bridge]
+    # Desativado: não distribuímos build Linux/.deb (decisão explícita) e esse
+    # job vinha falhando em "Full Flutter CI" por instabilidade da própria
+    # infra do runner (cache do Actions), travando o check em toda push sem
+    # afetar os 4 instaladores reais (Windows/macOS/Android, que não usam
+    # este workflow reutilizável).
+    if: false
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
     strategy:
