@@ -1422,6 +1422,18 @@ class RustdeskImpl {
     return Future(() => js.context.callMethod('getByName', ['build_date']));
   }
 
+  Future<String> mainGetGitHash({dynamic hint}) {
+    return Future(() => js.context.callMethod('getByName', ['git_hash']));
+  }
+
+  String mainGetVersionSync({dynamic hint}) {
+    return js.context.callMethod('getByName', ['version']);
+  }
+
+  String mainGetGitHashSync({dynamic hint}) {
+    return js.context.callMethod('getByName', ['git_hash']);
+  }
+
   String translate(
       {required String name, required String locale, dynamic hint}) {
     return js.context.callMethod('getByName', [

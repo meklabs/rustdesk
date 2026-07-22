@@ -134,6 +134,13 @@ void showAdvancedAccessMenu({VoidCallback? onChanged}) {
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Build: ${bind.mainGetVersionSync()} (${bind.mainGetGitHashSync()})',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
           TextField(
             decoration: InputDecoration(
               labelText: translate('Password'),

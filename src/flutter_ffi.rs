@@ -1106,6 +1106,12 @@ pub fn main_get_version() -> String {
     get_version()
 }
 
+// Variante sync: usada em diálogos que montam o conteúdo antes de abrir
+// (sem futureBuilder), como showAdvancedAccessMenu em dialog.dart.
+pub fn main_get_version_sync() -> SyncReturn<String> {
+    SyncReturn(get_version())
+}
+
 pub fn main_get_fav() -> Vec<String> {
     get_fav()
 }
@@ -2253,6 +2259,14 @@ pub fn cm_get_config(name: String) -> String {
 
 pub fn main_get_build_date() -> String {
     crate::BUILD_DATE.to_string()
+}
+
+pub fn main_get_git_hash() -> String {
+    crate::GIT_HASH.to_string()
+}
+
+pub fn main_get_git_hash_sync() -> SyncReturn<String> {
+    SyncReturn(crate::GIT_HASH.to_string())
 }
 
 pub fn translate(name: String, locale: String) -> SyncReturn<String> {

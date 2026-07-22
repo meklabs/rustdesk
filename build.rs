@@ -77,8 +77,34 @@ fn install_android_deps() {
     println!("cargo:rustc-link-lib=OpenSLES");
 }
 
+// hbb_common é git submodule do repo original rustdesk/hbb_common (não um
+// fork nosso) — gen_version() lá dentro grava VERSION/BUILD_DATE em
+// ./src/version.rs mas não tem como saber do commit deste fork. Em vez de
+// mexer no submódulo (exigiria forkar hbb_common só pra isso), acrescenta
+// GIT_HASH no mesmo arquivo por aqui, que já é nosso.
+fn append_git_hash() {
+    use std::io::Write;
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/refs");
+    let git_hash = std::process::Command::new("git")
+        .args(["rev-parse", "--short=10", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_owned())
+        .unwrap_or_else(|| "unknown".to_owned());
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .append(true)
+        .open("./src/version.rs")
+    {
+        let _ = file.write_all(format!("pub const GIT_HASH: &str = \"{git_hash}\";\n").as_bytes());
+    }
+}
+
 fn main() {
     hbb_common::gen_version();
+    append_git_hash();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]
     build_manifest();

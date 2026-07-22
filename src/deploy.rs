@@ -160,9 +160,17 @@ fn check_license() -> LicenseOutcome {
     let uuid = crate::ui_interface::get_uuid();
     let hostname = crate::common::hostname();
 
+    // build_version/build_hash/build_date identificam exatamente qual build
+    // deste fork está rodando no dispositivo — diferente de "version" (que é
+    // a versão do RustDesk em si e não muda entre nossos commits), permite
+    // ao backend saber quem ainda está numa build antiga sem depender de
+    // descoberta manual via chamado de suporte.
     let body = serde_json::json!({
         "uuid": uuid,
         "hostname": hostname,
+        "build_version": crate::VERSION,
+        "build_hash": crate::GIT_HASH,
+        "build_date": crate::BUILD_DATE,
     });
 
     let client = match reqwest::blocking::Client::builder()

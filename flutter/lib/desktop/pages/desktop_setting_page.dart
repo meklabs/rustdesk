@@ -2410,17 +2410,20 @@ class _AboutState extends State<_About> {
       final license = await bind.mainGetLicense();
       final version = await bind.mainGetVersion();
       final buildDate = await bind.mainGetBuildDate();
+      final gitHash = await bind.mainGetGitHash();
       final fingerprint = await bind.mainGetFingerprint();
       return {
         'license': license,
         'version': version,
         'buildDate': buildDate,
+        'gitHash': gitHash,
         'fingerprint': fingerprint
       };
     }(), hasData: (data) {
       final license = data['license'].toString();
       final version = data['version'].toString();
       final buildDate = data['buildDate'].toString();
+      final gitHash = data['gitHash'].toString();
       final fingerprint = data['fingerprint'].toString();
       const linkStyle = TextStyle(decoration: TextDecoration.underline);
       final scrollController = ScrollController();
@@ -2438,6 +2441,9 @@ class _AboutState extends State<_About> {
                       .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Build Date')}: $buildDate')
+                      .marginSymmetric(vertical: 4.0)),
+              SelectionArea(
+                  child: Text('Build: $gitHash')
                       .marginSymmetric(vertical: 4.0)),
               if (!isWeb)
                 SelectionArea(
