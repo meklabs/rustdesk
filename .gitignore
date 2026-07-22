@@ -9,6 +9,7 @@ src/ui/inline.rs
 extractor
 __pycache__
 src/version.rs
+src/git_hash.rs
 *dmg
 *exe
 *tgz

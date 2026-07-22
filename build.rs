@@ -80,10 +80,13 @@ fn install_android_deps() {
 // hbb_common é git submodule do repo original rustdesk/hbb_common (não um
 // fork nosso) — gen_version() lá dentro grava VERSION/BUILD_DATE em
 // ./src/version.rs mas não tem como saber do commit deste fork. Em vez de
-// mexer no submódulo (exigiria forkar hbb_common só pra isso), acrescenta
-// GIT_HASH no mesmo arquivo por aqui, que já é nosso.
-fn append_git_hash() {
-    use std::io::Write;
+// mexer no submódulo (exigiria forkar hbb_common só pra isso) ou de dar
+// append no arquivo gerado por ele (quebrou o build Linux: builds paralelos
+// de build.rs para múltiplos targets disputam o mesmo arquivo em append,
+// deixando GIT_HASH ausente ou duplicado), grava GIT_HASH num arquivo
+// próprio, sempre recriado do zero (File::create trunca) e sem nenhuma
+// dependência de ordem de execução com o gen_version() do hbb_common.
+fn gen_git_hash() {
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs");
     let git_hash = std::process::Command::new("git")
@@ -94,17 +97,15 @@ fn append_git_hash() {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_owned())
         .unwrap_or_else(|| "unknown".to_owned());
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .append(true)
-        .open("./src/version.rs")
-    {
-        let _ = file.write_all(format!("pub const GIT_HASH: &str = \"{git_hash}\";\n").as_bytes());
-    }
+    let _ = std::fs::write(
+        "./src/git_hash.rs",
+        format!("pub const GIT_HASH: &str = \"{git_hash}\";\n"),
+    );
 }
 
 fn main() {
     hbb_common::gen_version();
-    append_git_hash();
+    gen_git_hash();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]
     build_manifest();
