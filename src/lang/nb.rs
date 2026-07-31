@@ -140,7 +140,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Key mismatch", "Nøkkel mismatch"),
         ("Timeout", "Timeout"),
         ("Failed to connect to relay server", "tilkobling til rele-serveren mislykktes"),
-        ("Failed to connect via rendezvous server", "tilkobling via Rendezvous-server mislykktes"),
+        ("Failed to connect via rendezvous server", "tilkobling via MyRemote-server mislykktes"),
         ("Failed to connect via relay server", "tilkobling via rele-serveren mislykktes"),
         ("Failed to make direct connection to remote desktop", "Direkte tilkobling til fjernskrivebord kunne ikke etableres"),
         ("Set Password", "Sett passord"),

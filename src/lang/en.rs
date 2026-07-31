@@ -279,5 +279,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("wayland-soft-keyboard-input-label", "Soft keyboard input"),
         ("wayland-keyboard-input-reset-choice-tip", "Reset keyboard input choice"),
         ("remember-wayland-keyboard-choice-tip", "Don't ask again for this remote computer"),
+        ("Failed to connect to rendezvous server", "Failed to connect to MyRemote server"),
+        ("Failed to connect via rendezvous server", "Failed to connect via MyRemote server"),
     ].iter().cloned().collect();
 }
