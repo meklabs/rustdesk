@@ -509,11 +509,9 @@ pub fn apply() {
             hbb_common::config::Config::set_permanent_password(&daily_password());
             spawn_daily_password_refresher();
             show_license_grace_notice(&format!(
-                "MyRemote está sem conexão com o servidor Infomek no momento e \
-                 continua operando normalmente com a última licença validada \
-                 (isso não é uma versão de teste/demonstração). A validação será \
-                 refeita automaticamente assim que a conexão voltar; até lá, o \
-                 acesso remoto segue funcionando normalmente até {}",
+                "Não foi possível conectar ao servidor da Infomek no momento. \
+                 Verifique a conexão com a internet. O MyRemote pode continuar \
+                 sendo usado normalmente, com a última licença validada, até {}",
                 grace_expires_at.format("%d/%m/%Y %H:%M")
             ));
         }

@@ -3796,6 +3796,75 @@ class _LogoState extends State<_Logo> {
 // max 300 x 60
 Widget loadLogo() => const _Logo();
 
+const _kMekLabsDefaultLogoAsset = 'assets/meklabs_logo.png';
+const _kMekLabsLightLogoAsset = 'assets/meklabs_logo_light.png';
+const _kMekLabsDarkLogoAsset = 'assets/meklabs_logo_dark.png';
+
+List<String> _mekLabsLogoAssetCandidatesForBrightness(Brightness brightness) {
+  return brightness == Brightness.dark
+      ? [_kMekLabsDarkLogoAsset, _kMekLabsDefaultLogoAsset]
+      : [_kMekLabsLightLogoAsset, _kMekLabsDefaultLogoAsset];
+}
+
+Future<String?> _resolveMekLabsLogoAsset(Brightness brightness) async {
+  for (final asset in _mekLabsLogoAssetCandidatesForBrightness(brightness)) {
+    try {
+      await rootBundle.load(asset);
+      return asset;
+    } on FlutterError {
+      continue;
+    }
+  }
+  return null;
+}
+
+/// Logo da MekLabs (fabricante) exibida na tela "About" — separada da logo
+/// principal do produto (_Logo/loadLogo, mostrada na Home) desde que a Home
+/// passou a usar a logo do MyRemote.
+class _MekLabsBrandLogo extends StatefulWidget {
+  const _MekLabsBrandLogo();
+
+  @override
+  State<_MekLabsBrandLogo> createState() => _MekLabsBrandLogoState();
+}
+
+class _MekLabsBrandLogoState extends State<_MekLabsBrandLogo> {
+  final Map<Brightness, Future<String?>> _logoFutures = {};
+
+  Future<String?> _logoFutureFor(Brightness brightness) {
+    return _logoFutures.putIfAbsent(
+      brightness,
+      () => _resolveMekLabsLogoAsset(brightness),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _logoFutureFor(Theme.of(context).brightness),
+      builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
+        final asset = snapshot.data;
+        if (asset != null) {
+          final image = Image.asset(
+            asset,
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, error, stackTrace) {
+              return Container();
+            },
+          );
+          return Container(
+            constraints: BoxConstraints(maxWidth: 260, maxHeight: 70),
+            child: image,
+          );
+        }
+        return const Offstage();
+      },
+    );
+  }
+}
+
+Widget loadMekLabsBrandLogo() => const _MekLabsBrandLogo();
+
 Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',
       width: size,

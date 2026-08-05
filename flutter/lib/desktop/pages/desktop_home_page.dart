@@ -80,11 +80,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final isOutgoingOnly = bind.isOutgoingOnly();
     final children = <Widget>[
       if (!isOutgoingOnly) buildPresetPasswordWarning(),
-      if (bind.isCustomClient())
-        Align(
-          alignment: Alignment.center,
-          child: loadPowered(context),
-        ),
       Align(
         alignment: Alignment.center,
         child: loadLogo(),
@@ -143,7 +138,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     children: children,
                   ),
                 ),
-                Expanded(child: Container())
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: loadMekLabsBrandLogo().marginOnly(bottom: 12),
+                  ),
+                ),
               ],
             ),
             if (isOutgoingOnly)
