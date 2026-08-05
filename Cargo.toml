@@ -1,6 +1,6 @@
 [package]
 name = "rustdesk"
-version = "2.5.0"
+version = "2.5.1"
 authors = ["rustdesk <info@rustdesk.com>"]
 edition = "2021"
 build= "build.rs"
@@ -212,10 +212,17 @@ exclude = ["vdi/host", "examples/custom_plugin"]
 [patch.crates-io]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
 
+## Nota: bloco lido pelo build.rs::build_manifest() só quando a feature "inline"
+## está ativa, e build.py::get_features() só inclui "inline" quando --flutter
+## NÃO é passado — o workflow "Build Windows MSI" sempre builda com --flutter,
+## então esse bloco não é usado no build que de fato vira o instalador
+## (quem controla a metadata do .exe ali é flutter/windows/runner/Runner.rc).
+## Mantido em sincronia mesmo assim, por consistência, caso algum dia se
+## construa uma variante sem --flutter.
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 Purslane Ltd. All rights reserved."
-ProductName = "RustDesk"
-FileDescription = "RustDesk Remote Desktop"
+LegalCopyright = "Copyright © 2026 MekLabs. All rights reserved."
+ProductName = "MyRemote"
+FileDescription = "MyRemote Remote Desktop"
 OriginalFilename = "rustdesk.exe"
 
 [target.'cfg(target_os="windows")'.build-dependencies]

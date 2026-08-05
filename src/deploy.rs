@@ -174,8 +174,18 @@ fn check_license() -> LicenseOutcome {
         "build_date": crate::BUILD_DATE,
     });
 
+    // Antes era 5s — muito curto pra dispositivos fora da rede (link mais
+    // lento/instável) e principalmente pra quando múltiplos processos deste
+    // mesmo fork (--service, --server, --tray) chamam check_license() quase
+    // ao mesmo tempo no boot: se a API/banco do lado do servidor serializar
+    // essas chamadas concorrentes (ex.: lock de sessão/linha no PHP), as
+    // requisições que ficam esperando na fila estouravam os 5s do lado do
+    // cliente e caíam em modo offline (CachedGrace) mesmo com o Apache
+    // acabando respondendo 200 pra todas elas (visto em campo: 3 POSTs quase
+    // simultâneos, todos 200 no access_log, mas o app mostrando "sem conexão
+    // com o servidor" mesmo assim).
     let client = match reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(15))
         .build()
     {
         Ok(c) => c,
@@ -199,8 +209,17 @@ fn check_license() -> LicenseOutcome {
                 LicenseOutcome::Denied { message }
             }
             // valid=true mas sem id_server: resposta incompleta/inesperada,
-            // trata como instabilidade da API, não como negação.
-            Ok(parsed) if parsed.id_server.is_empty() => license_from_cache(),
+            // trata como instabilidade da API, não como negação. Logado (só
+            // no arquivo, não aparece em tela) pra dar pra diagnosticar sem
+            // adivinhar da próxima vez — isso indica um problema do lado da
+            // API (bug no receiver.php ou no banco), não do cliente.
+            Ok(parsed) if parsed.id_server.is_empty() => {
+                hbb_common::log::warn!(
+                    "check_license(): API respondeu valid=true mas id_server veio \
+                     vazio — tratando como instabilidade da API, caindo no cache local."
+                );
+                license_from_cache()
+            }
             Ok(parsed) => {
                 let cfg = format!(
                     "{}\n{}\n{}",
@@ -222,11 +241,27 @@ fn check_license() -> LicenseOutcome {
             }
             // JSON incompleto/inesperado: trata como instabilidade da API, não
             // como negação de licença.
-            Err(_) => license_from_cache(),
+            Err(e) => {
+                hbb_common::log::warn!(
+                    "check_license(): resposta da API não pôde ser interpretada como \
+                     JSON válido ({}), caindo no cache local.",
+                    e
+                );
+                license_from_cache()
+            }
         },
-        // Falha de rede/conexão: pode ser instabilidade pontual da API, não uma
-        // negação da licença — cai no cache pra não travar o técnico à toa.
-        Err(_) => license_from_cache(),
+        // Falha de rede/conexão (inclui timeout de 15s): pode ser instabilidade
+        // pontual da API/rede, não uma negação da licença — cai no cache pra não
+        // travar o técnico à toa. Logado com o erro exato pra diferenciar
+        // timeout de recusa de conexão/DNS/TLS sem precisar adivinhar.
+        Err(e) => {
+            hbb_common::log::warn!(
+                "check_license(): falha ao contatar {} ({}), caindo no cache local.",
+                LICENSE_API_URL,
+                e
+            );
+            license_from_cache()
+        }
     }
 }
 
