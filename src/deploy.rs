@@ -60,12 +60,13 @@ const LICENSE_EXPIRY_KEY: &str = "deploy-license-expires-at";
 const LICENSE_LAST_VALIDATED_KEY: &str = "deploy-license-last-validated";
 
 /// Prazo máximo que uma validação em cache pode ser reaproveitada sem contato
-/// bem-sucedido com a API (3,5 dias = 302400s). Depois disso, mesmo com cache
+/// bem-sucedido com a API (5 dias = 432000s). Depois disso, mesmo com cache
 /// válido, o app bloqueia — evita que uma licença revogada continue
 /// funcionando pra sempre só porque o dispositivo ficou sem rede (de
-/// propósito ou não). Cobre folgas de fim de semana/feriado prolongado ou uma
-/// queda de link/manutenção da API sem derrubar o técnico no meio do serviço.
-const LICENSE_GRACE_PERIOD_SECS: i64 = 302_400;
+/// propósito ou não). Cobre quedas de link/manutenção de servidor prolongadas
+/// sem derrubar o ambiente do cliente no meio do caminho (3,5 dias testados
+/// na prática se mostraram curtos demais para falhas reais de rede/servidor).
+const LICENSE_GRACE_PERIOD_SECS: i64 = 432_000;
 
 /// Exit code usado quando `apply()` encerra o processo por licença negada ou
 /// bloqueada (nunca por um crash comum). O serviço Windows (`run_service()`
@@ -189,7 +190,9 @@ fn check_license() -> LicenseOutcome {
                 LocalConfig::set_option(LICENSE_EXPIRY_KEY.to_owned(), "".to_owned());
                 LocalConfig::set_option(LICENSE_LAST_VALIDATED_KEY.to_owned(), "".to_owned());
                 let message = if parsed.message.is_empty() {
-                    "Licença inválida ou expirada. Contate o suporte Infomek.".to_owned()
+                    "Licença Infomek inválida ou expirada para este dispositivo. \
+                     Contate o suporte Infomek."
+                        .to_owned()
                 } else {
                     parsed.message
                 };
@@ -234,8 +237,10 @@ fn license_from_cache() -> LicenseOutcome {
     let blocked = |message: String| LicenseOutcome::Blocked { message };
     let no_history = || {
         blocked(
-            "Sem conexão com o servidor de licenciamento e nenhuma validação anterior \
-             registrada neste dispositivo. Verifique a internet e tente novamente."
+            "MyRemote não conseguiu validar a licença com o servidor Infomek \
+             (srv-rust.infomek.com.br) e este dispositivo ainda não tem nenhuma \
+             validação anterior registrada. Verifique a conexão com a internet; \
+             se o problema persistir, contate o suporte Infomek."
                 .to_owned(),
         )
     };
@@ -253,8 +258,10 @@ fn license_from_cache() -> LicenseOutcome {
     let elapsed_secs = chrono::Utc::now().timestamp() - last_validated_ts;
     if !(0..=LICENSE_GRACE_PERIOD_SECS).contains(&elapsed_secs) {
         return blocked(
-            "Licença não revalidada com o servidor Infomek há mais de 3,5 dias. \
-             Verifique a internet ou contate o suporte."
+            "MyRemote está há mais de 5 dias sem conseguir validar a licença com \
+             o servidor Infomek (srv-rust.infomek.com.br). O acesso remoto foi \
+             suspenso até a próxima validação. Verifique a conexão com a \
+             internet; se o problema persistir, contate o suporte Infomek."
                 .to_owned(),
         );
     }
@@ -335,20 +342,35 @@ fn native_alert(text: &str) {
 /// (o chamador é responsável por sair em seguida). Ao clicar OK, some — não
 /// reaparece sozinho: só volta se o processo for relançado de novo (e, com
 /// LICENSE_BLOCKED_EXIT_CODE, isso só acontece no próximo restart do serviço).
+///
+/// No processo `--service` (Sessão 0 no Windows / LaunchDaemon no macOS) não
+/// existe desktop interativo pra esse diálogo aparecer — MessageBoxW/osascript
+/// nesse contexto trava a thread esperando um clique que nunca chega, e é
+/// exatamente isso que fazia o Windows acusar "o serviço não respondeu à
+/// solicitação". Nesse processo só logamos; a mensagem continua visível pro
+/// usuário no `--server`/app que roda na sessão interativa (mesma checagem de
+/// licença é refeita lá).
 fn show_license_blocked_dialog(message: &str) {
     let text = format!("{}!", message.trim_end_matches('!'));
     hbb_common::log::error!("{}", text);
-    native_alert(&text);
+    if !crate::common::is_service_process() {
+        native_alert(&text);
+    }
 }
 
 /// Diálogo de aviso não-bloqueante: informa que a licença está operando em
 /// modo offline (dentro do prazo de tolerância) e some ao clicar OK, sem
 /// encerrar o processo. Só reaparece no próximo restart do processo (não
 /// fica reabrindo em loop).
+///
+/// Mesmo motivo do `show_license_blocked_dialog`: no processo `--service`
+/// isso só vai pro log, nunca pra tela — ver comentário acima.
 fn show_license_grace_notice(message: &str) {
     let text = format!("{}.", message.trim_end_matches('.'));
     hbb_common::log::warn!("{}", text);
-    native_alert(&text);
+    if !crate::common::is_service_process() {
+        native_alert(&text);
+    }
 }
 
 /// Aplica id_server/relay_server/key da licença como config "fixa" (sem
@@ -371,6 +393,25 @@ fn apply_server_config(server: ServerConfig) {
         "verification-method".to_owned(),
         "use-permanent-password".to_owned(),
     );
+    // Sem isso, UDP hole punch vem desligado por padrão (ver
+    // get_local_option() em common.rs: qualquer servidor que não seja
+    // *.rustdesk.com cai em "N" quando o usuário nunca mexeu na opção) — todo
+    // dispositivo licenciado aqui nasceria só com P2P via TCP hole punch
+    // (bem mais frágil contra NAT/firewall real) ou relay puro, mesmo o hole
+    // punch sempre indo contra o nosso próprio srv-rust.infomek.com.br, nunca
+    // rede pública. Forçar "Y" aqui só troca a técnica tentada primeiro; se a
+    // rede do cliente bloquear UDP de verdade, cai no mesmo fallback TCP/relay
+    // de sempre.
+    //
+    // IMPORTANTE: "enable-udp-punch" é lido via LocalConfig::get_option()
+    // (common.rs: get_local_option()), que consulta OVERWRITE_LOCAL_SETTINGS
+    // — um mapa DIFERENTE do OVERWRITE_SETTINGS usado acima pros outros
+    // campos (esses vêm de Config::get_option()). Inserir isso em
+    // OVERWRITE_SETTINGS não teria efeito nenhum.
+    hbb_common::config::OVERWRITE_LOCAL_SETTINGS
+        .write()
+        .unwrap()
+        .insert("enable-udp-punch".to_owned(), "Y".to_owned());
 }
 
 pub fn apply() {
@@ -433,8 +474,11 @@ pub fn apply() {
             hbb_common::config::Config::set_permanent_password(&daily_password());
             spawn_daily_password_refresher();
             show_license_grace_notice(&format!(
-                "Período de teste Infomek ativo (sem conexão com o servidor de \
-                 licenciamento) — expira em {}",
+                "MyRemote está sem conexão com o servidor Infomek no momento e \
+                 continua operando normalmente com a última licença validada \
+                 (isso não é uma versão de teste/demonstração). A validação será \
+                 refeita automaticamente assim que a conexão voltar; até lá, o \
+                 acesso remoto segue funcionando normalmente até {}",
                 grace_expires_at.format("%d/%m/%Y %H:%M")
             ));
         }

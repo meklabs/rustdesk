@@ -108,6 +108,30 @@ lazy_static::lazy_static! {
     static ref IS_CM: bool = std::env::args().nth(1) == Some("--cm".to_owned()) || std::env::args().nth(1) == Some("--cm-no-ui".to_owned());
 }
 
+// On Windows the service host is `rustdesk.exe --service` (detected below from
+// argv), but on macOS it's a *separate* bin target (src/service.rs, its own
+// `fn main()` invoked directly by launchd, no "--service" arg to look for) — so
+// `set_is_service_process()` lets that entry point mark itself explicitly.
+static IS_SERVICE_OVERRIDE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// True only for the OS-level Windows service (`--service` argv) / macOS
+/// LaunchDaemon host process, never for the `--server` process it launches into
+/// a user's session. Both run non-interactively (Session 0 on Windows, no
+/// logged-in user required on macOS) with no desktop to show a modal dialog on
+/// — used to skip native_alert() in deploy.rs, which would otherwise hang
+/// forever waiting for a click nobody can give.
+pub fn is_service_process() -> bool {
+    IS_SERVICE_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed)
+        || std::env::args().nth(1).as_deref() == Some("--service")
+}
+
+/// Called explicitly by the macOS service bin (src/service.rs) before
+/// `load_custom_client()`, since it has no "--service" argv to be detected by.
+pub fn set_is_service_process() {
+    IS_SERVICE_OVERRIDE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub struct SimpleCallOnReturn {
     pub b: bool,
     pub f: Box<dyn Fn() + Send + 'static>,

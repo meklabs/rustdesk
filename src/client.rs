@@ -48,7 +48,7 @@ use hbb_common::{
     bail,
     config::{
         self, keys, use_ws, Config, LocalConfig, PeerConfig, PeerInfoSerde, Resolution,
-        CONNECT_TIMEOUT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT, RENDEZVOUS_SERVERS,
+        CONNECT_TIMEOUT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT,
     },
     fs::JobType,
     futures::future::{select_ok, FutureExt},
@@ -285,28 +285,26 @@ impl Client {
             ));
         }
 
+        // RustDesk upstream permite conectar via um servidor diferente do
+        // configurado usando a sintaxe "<id>@servidor" (inclusive "<id>@public",
+        // que aponta pra rede pública do RustDesk com a chave RS_PUB_KEY) —
+        // digitável direto na caixa de conexão ou vindo de um link
+        // "rustdesk://<id>/r@servidor" (ver flutter/lib/common.dart). Esse fork
+        // só pode conectar em srv-rust.infomek.com.br, nunca em outro host,
+        // então qualquer id@servidor é recusado aqui — este é o único lugar
+        // que efetivamente disca a conexão, então bloquear aqui cobre tanto a
+        // digitação manual quanto o deep link, independente de como
+        // other_server foi montado.
         let other_server = interface.get_lch().read().unwrap().other_server.clone();
-        let (peer, other_server, key, token) = if let Some((a, b, c)) = other_server.as_ref() {
-            (a.as_ref(), b.as_ref(), c.as_ref(), "")
-        } else {
-            (peer, "", key, token)
-        };
-        let (rendezvous_server, servers, contained) = if other_server.is_empty() {
-            crate::get_rendezvous_server(1_000).await
-        } else {
-            if other_server == PUBLIC_SERVER {
-                (
-                    check_port(RENDEZVOUS_SERVERS[0], RENDEZVOUS_PORT),
-                    RENDEZVOUS_SERVERS[1..]
-                        .iter()
-                        .map(|x| x.to_string())
-                        .collect(),
-                    true,
-                )
-            } else {
-                (check_port(other_server, RENDEZVOUS_PORT), Vec::new(), true)
-            }
-        };
+        if let Some((_, server, _)) = other_server.as_ref() {
+            bail!(
+                "Conexão bloqueada: este aplicativo só pode conectar através do \
+                 servidor Infomek (srv-rust.infomek.com.br). O servidor \"{}\" \
+                 informado junto com o ID não é permitido.",
+                server
+            );
+        }
+        let (rendezvous_server, servers, contained) = crate::get_rendezvous_server(1_000).await;
 
         if crate::get_ipv6_punch_enabled() {
             crate::test_ipv6().await;
