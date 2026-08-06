@@ -110,14 +110,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (isIncomingOnly) {
       children.addAll([
         Divider(),
-        OnlineStatusWidget(
-          onSvcStatusChanged: () {
-            if (isInHomePage()) {
-              Future.delayed(Duration(milliseconds: 300), () {
-                _updateWindowSize();
-              });
-            }
-          },
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: OnlineStatusWidget(
+                onSvcStatusChanged: () {
+                  if (isInHomePage()) {
+                    Future.delayed(Duration(milliseconds: 300), () {
+                      _updateWindowSize();
+                    });
+                  }
+                },
+              ),
+            ),
+            SizedBox(
+              height: 28,
+              child: loadMekLabsBrandLogo(),
+            ).marginOnly(left: 6),
+          ],
         ).marginOnly(bottom: 6, right: 6)
       ]);
     }
@@ -138,12 +149,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     children: children,
                   ),
                 ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: loadMekLabsBrandLogo().marginOnly(bottom: 12),
-                  ),
-                ),
+                Expanded(child: Container())
               ],
             ),
             if (isOutgoingOnly)
