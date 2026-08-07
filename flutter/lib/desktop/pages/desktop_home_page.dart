@@ -110,25 +110,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (isIncomingOnly) {
       children.addAll([
         Divider(),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: OnlineStatusWidget(
-                onSvcStatusChanged: () {
-                  if (isInHomePage()) {
-                    Future.delayed(Duration(milliseconds: 300), () {
-                      _updateWindowSize();
-                    });
-                  }
-                },
-              ),
-            ),
-            SizedBox(
-              height: 28,
-              child: loadMekLabsBrandLogo(),
-            ).marginOnly(left: 6),
-          ],
+        OnlineStatusWidget(
+          onSvcStatusChanged: () {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          },
         ).marginOnly(bottom: 6, right: 6)
       ]);
     }
