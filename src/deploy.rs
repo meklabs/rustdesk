@@ -1,5 +1,6 @@
 // ══════════════════════════════════════════════════════════════════
 // CONFIGURAÇÃO DE DEPLOY — edite aqui e recompile
+// (v2.5.3 — build re-disparada em 2026-08-07 após incidente do GitHub Actions)
 // ══════════════════════════════════════════════════════════════════
 
 /// Senha permanente para aceitar conexões remotas.
