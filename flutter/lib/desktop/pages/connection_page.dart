@@ -321,15 +321,24 @@ class _ConnectionPageState extends State<ConnectionPage>
         ).paddingOnly(left: 12.0)),
         if (!isOutgoingOnly) const Divider(height: 1),
         if (!isOutgoingOnly)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: OnlineStatusWidget()),
-              SizedBox(
-                height: 28,
-                child: loadMekLabsBrandLogo(),
-              ).marginOnly(right: 12),
-            ],
+          Container(
+            // Força a mesma cor de fundo do resto do painel direito
+            // (buildRightPane usa scaffoldBackgroundColor) — sem isso essa
+            // faixa herdava colorScheme.background, que no tema claro é um
+            // cinza (#EFEFF2, ver MyTheme em common.dart) diferente do
+            // branco usado no restante da tela, destacando a faixa do
+            // status/logo do resto do ambiente.
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: OnlineStatusWidget()),
+                SizedBox(
+                  height: 28,
+                  child: loadMekLabsBrandLogo(),
+                ).marginOnly(right: 12),
+              ],
+            ),
           )
       ],
     );
