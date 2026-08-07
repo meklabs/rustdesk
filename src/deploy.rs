@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════
 // CONFIGURAÇÃO DE DEPLOY — edite aqui e recompile
-// (v2.5.3 — build re-disparada em 2026-08-07 após incidente do GitHub Actions)
+// (v2.5.6 — re-disparando macOS Intel em 2026-08-07 após falha de DNS no runner)
 // ══════════════════════════════════════════════════════════════════
 
 /// Senha permanente para aceitar conexões remotas.
