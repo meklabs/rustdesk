@@ -255,3 +255,6 @@ rpath = true
 
 [profile.dev]
 debug = 1
+
+# Re-disparo v2.5.6: builds macOS Intel falharam no checkout (transiente).
+# Commit-trivial de comentário para forçar diff real e re-trigger dos workflows.
