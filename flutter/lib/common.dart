@@ -409,7 +409,10 @@ class MyTheme {
         bodyMedium:
             TextStyle(fontSize: 14, color: Colors.black87, height: 1.25),
         labelLarge: TextStyle(fontSize: 16.0, color: MyTheme.accent80)),
-    cardColor: grayBg,
+    // Antes era grayBg (#EFEFF2) — criava um painel/sidebar visivelmente
+    // diferente do resto do app (branco). Igualado ao scaffoldBackgroundColor
+    // pra ficar tudo uma cor só, como pedido.
+    cardColor: Colors.white,
     hintColor: Color(0xFFAAAAAA),
     visualDensity: VisualDensity.adaptivePlatformDensity,
     tabBarTheme: const TabBarTheme(
@@ -453,8 +456,10 @@ class MyTheme {
     menuBarTheme: MenuBarThemeData(
         style:
             MenuStyle(backgroundColor: MaterialStatePropertyAll(Colors.white))),
+    // background: era grayBg — é o que o painel esquerdo (buildLeftPane) usa
+    // como cor de fundo; igualado ao branco do resto do app.
     colorScheme: ColorScheme.light(
-        primary: Colors.blue, secondary: accent, background: grayBg),
+        primary: Colors.blue, secondary: accent, background: Colors.white),
     popupMenuTheme: PopupMenuThemeData(
         color: Colors.white,
         shape: RoundedRectangleBorder(
@@ -511,7 +516,10 @@ class MyTheme {
         color: accent80,
       ),
     ),
-    cardColor: Color(0xFF24252B),
+    // Antes era Color(0xFF24252B) — um cinza mais claro que o
+    // scaffoldBackgroundColor (0xFF18191E), criava painel/sidebar destacado
+    // do resto do app no tema escuro. Igualado pra ficar tudo uma cor só.
+    cardColor: Color(0xFF18191E),
     visualDensity: VisualDensity.adaptivePlatformDensity,
     tabBarTheme: const TabBarTheme(
       labelColor: Colors.white70,
@@ -561,10 +569,13 @@ class MyTheme {
     menuBarTheme: MenuBarThemeData(
         style: MenuStyle(
             backgroundColor: MaterialStatePropertyAll(Color(0xFF121212)))),
+    // background: era Color(0xFF24252B) — é o que o painel esquerdo
+    // (buildLeftPane) usa como cor de fundo; igualado ao
+    // scaffoldBackgroundColor do resto do app no tema escuro.
     colorScheme: ColorScheme.dark(
       primary: Colors.blue,
       secondary: accent,
-      background: Color(0xFF24252B),
+      background: Color(0xFF18191E),
     ),
     popupMenuTheme: PopupMenuThemeData(
         shape: RoundedRectangleBorder(
